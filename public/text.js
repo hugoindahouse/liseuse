@@ -17,6 +17,8 @@ export function cleanTesseractText(raw) {
   while (lines.length && (lines.at(-1).trim() === '' || PAGE_NUMBER.test(lines.at(-1)))) lines.pop();
 
   return lines
+    // Une ligne sans aucun mot (grain de la photo lu comme « 4 », « | », « ~ »…) est un parasite.
+    .filter((line) => !line.trim() || /\p{L}{2,}/u.test(line) || /^\s*(\*\s*){3}$/.test(line))
     // Une courte ligne entièrement en majuscules est traitée comme un titre de chapitre.
     .map((line) => (isCapsTitle(line) ? `\n# ${line.trim()}\n` : line))
     .join('\n')

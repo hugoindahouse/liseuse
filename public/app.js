@@ -1,6 +1,7 @@
 // Liseuse — interface (bibliothèque, gestion des pages, lecture).
 
 import { escapeHtml as esc, inlineHtml as inline, cleanTesseractText } from './text.js';
+import { enhanceForOcr } from './preprocess.js';
 
 const app = document.getElementById('app');
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -181,7 +182,7 @@ function getTesseract() {
       });
     }
     // Le premier lancement télécharge les données de langue (≈ 15 Mo), ensuite gardées en cache.
-    return window.Tesseract.createWorker('fra+eng');
+    return window.Tesseract.createWorker('fra');
   })().catch((err) => {
     tesseractWorker = null;
     throw err;
@@ -196,8 +197,20 @@ async function recognizeInBrowser(bookId, page) {
     if (!res.ok) throw new Error('Photo introuvable');
     image = await res.blob();
   }
+  // Nettoie la photo (ombres, éclairage, contraste) : divise les erreurs par 5 à 10 sur des photos difficiles.
+  const bitmap = await createImageBitmap(image);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  enhanceForOcr(pixels);
+  ctx.putImageData(pixels, 0, 0);
+
   const worker = await getTesseract();
-  const { data } = await worker.recognize(image);
+  const { data } = await worker.recognize(canvas);
   return cleanTesseractText(data.text);
 }
 
