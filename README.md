@@ -17,7 +17,7 @@ ordinateur comme sur mobile. Tu peux aussi exporter le livre en **EPUB** (Kindle
 1. **Create Database → Blob** → crée le store → **Connect** au projet.
 2. **Create Database → Upstash for Redis** (Marketplace, offre gratuite) → **Connect** au projet.
 
-Vercel ajoute tout seul les variables `BLOB_READ_WRITE_TOKEN`, `KV_REST_API_URL` et `KV_REST_API_TOKEN`.
+Vercel ajoute tout seul les variables `BLOB_STORE_ID` (ou `BLOB_READ_WRITE_TOKEN`), `KV_REST_API_URL` et `KV_REST_API_TOKEN`.
 
 ### 3. Choisir un mot de passe
 
