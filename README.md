@@ -64,15 +64,18 @@ Sur iPhone, si une photo est refusée : Réglages → Appareil photo → Formats
 2. Dans Vercel : **Settings → Environment Variables** → `GEMINI_API_KEY` = la clé → **Save**, puis **Redeploy**.
 3. Dans un livre déjà transcrit, **↻ Tout relire**.
 
-L'offre gratuite limite le nombre de pages par minute et par jour : quand la limite par minute est
-atteinte, la lecture reprend toute seule ; quand la limite du jour est atteinte, relance le lendemain.
+L'offre gratuite limite le nombre de pages par minute et par jour, modèle par modèle. L'application
+utilise donc une cascade : **Gemini Flash** (le meilleur), puis **Flash-Lite**, puis **Gemma 3** (quota
+quotidien bien plus large) quand les précédents sont épuisés. Si tous sont momentanément bloqués, la
+lecture reprend toute seule ; s'ils sont tous épuisés pour la journée, relance le lendemain.
 Sur l'offre gratuite, Google peut utiliser les photos envoyées pour améliorer ses modèles.
 
 ### Options
 
 - `OCR_ENGINE` : `gemini`, `claude` ou `browser` pour forcer un moteur (sinon : Gemini si sa clé est là,
   puis Claude, puis Tesseract).
-- `OCR_MODEL` : modèle utilisé (défaut `gemini-flash-latest` pour Gemini, `claude-haiku-5-5` pour Claude).
+- `OCR_MODEL` : pour Gemini, liste de modèles séparés par des virgules (défaut
+  `gemini-flash-latest,gemini-flash-lite-latest,gemma-3-27b-it`) ; pour Claude, le modèle (défaut `claude-haiku-5-5`).
 - `OCR_EFFORT` : effort de réflexion de Claude (défaut `low`). Avec un modèle Claude Opus ou Sonnet, le repli
   automatique côté serveur (`fallbacks: "default"`) est activé.
 
