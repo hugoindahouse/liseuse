@@ -53,16 +53,28 @@ Sur iPhone, si une photo est refusée : Réglages → Appareil photo → Formats
 
 | Moteur | Qualité | Coût | Activation |
 |---|---|---|---|
-| **Tesseract**, dans le navigateur (par défaut) | correcte sur photos nettes | gratuit | rien à faire |
-| **Claude** (vision), sur le serveur | excellente : mise en page, titres, italiques | payant à l'usage (API Anthropic) | variable `ANTHROPIC_API_KEY` |
+| **Tesseract**, dans le navigateur (par défaut) | correcte sur photos nettes, faible sur photos difficiles | gratuit | rien à faire |
+| **Gemini** (Google), sur le serveur | excellente : mise en page, titres, italiques | gratuit (quota quotidien) | variable `GEMINI_API_KEY` |
+| **Claude** (Anthropic), sur le serveur | excellente | payant à l'usage | variable `ANTHROPIC_API_KEY` |
 
-Avec la variable `ANTHROPIC_API_KEY`, Claude est utilisé automatiquement, avec le modèle Claude Haiku 5.5
-(≈ 0,30 $ pour un livre de 300 pages). Le bouton **↻ Tout relire** relit un livre déjà transcrit.
-Avec un modèle Opus ou Sonnet (`OCR_MODEL`), les requêtes activent en plus le repli automatique côté
-serveur (`fallbacks: "default"`) : si le modèle refuse une requête, l'API la relance avec un autre modèle.
+### Activer Gemini (gratuit)
 
-Variables optionnelles : `OCR_ENGINE` (`claude` ou `browser`), `OCR_MODEL` (défaut `claude-haiku-5-5`),
-`OCR_EFFORT` (défaut `low`).
+1. Sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey), connecte-toi avec un compte Google
+   et clique sur **Create API key** (aucune carte bancaire demandée).
+2. Dans Vercel : **Settings → Environment Variables** → `GEMINI_API_KEY` = la clé → **Save**, puis **Redeploy**.
+3. Dans un livre déjà transcrit, **↻ Tout relire**.
+
+L'offre gratuite limite le nombre de pages par minute et par jour : quand la limite par minute est
+atteinte, la lecture reprend toute seule ; quand la limite du jour est atteinte, relance le lendemain.
+Sur l'offre gratuite, Google peut utiliser les photos envoyées pour améliorer ses modèles.
+
+### Options
+
+- `OCR_ENGINE` : `gemini`, `claude` ou `browser` pour forcer un moteur (sinon : Gemini si sa clé est là,
+  puis Claude, puis Tesseract).
+- `OCR_MODEL` : modèle utilisé (défaut `gemini-flash-latest` pour Gemini, `claude-haiku-5-5` pour Claude).
+- `OCR_EFFORT` : effort de réflexion de Claude (défaut `low`). Avec un modèle Claude Opus ou Sonnet, le repli
+  automatique côté serveur (`fallbacks: "default"`) est activé.
 
 ## En local (sur ton ordinateur)
 
@@ -84,7 +96,8 @@ Puis ouvre <http://localhost:3000>. Sans les variables Vercel, les livres sont s
 | `public/text.js` | mise en forme du texte, partagée entre navigateur et serveur |
 | `lib/app.js` | API (Express) |
 | `lib/storage/` | stockage : `cloud.js` (Upstash Redis + Vercel Blob privé) ou `local.js` (fichiers) |
-| `lib/ocr.js` | OCR avec Claude |
+| `public/preprocess.js` | nettoyage des photos avant Tesseract |
+| `lib/ocr.js` | OCR serveur avec Gemini ou Claude |
 | `lib/epub.js` | export EPUB |
 | `api/index.js` | point d'entrée Vercel |
 | `local-server.js` | serveur local |

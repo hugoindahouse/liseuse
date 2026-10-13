@@ -21,7 +21,7 @@ async function api(path, { method = 'GET', body } = {}) {
   }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `Erreur ${res.status}`);
+    throw Object.assign(new Error(data.error || `Erreur ${res.status}`), { status: res.status, retryAfter: data.retryAfter });
   }
   return res.status === 204 ? null : res.json();
 }
@@ -121,7 +121,10 @@ const ocrWaiting = [];
 const ocrQueued = new Set(); // pages en attente ou en cours (identifiants)
 const ocrRunning = new Set(); // pages en cours de lecture
 const freshImages = new Map(); // photos qui viennent d'être envoyées (évite de les re-télécharger)
+const quotaRetries = new Map(); // nombre d'attentes de quota par page
+const serverOcr = config.engine === 'gemini' || config.engine === 'claude';
 let ocrActive = 0;
+let ocrPausedUntil = 0; // quota de l'API atteint : toute la file attend
 
 function enqueueOcr(bookId, page) {
   if (page.status !== 'pending' || ocrQueued.has(page.id)) return;
@@ -131,7 +134,9 @@ function enqueueOcr(bookId, page) {
 }
 
 function pumpOcr() {
-  const limit = config.engine === 'claude' ? 3 : 1;
+  // Gemini gratuit limite le nombre de requêtes par minute : 2 pages à la fois.
+  const limit = { claude: 3, gemini: 2 }[config.engine] ?? 1;
+  if (Date.now() < ocrPausedUntil) return;
   while (ocrActive < limit && ocrWaiting.length) {
     const job = ocrWaiting.shift();
     ocrActive++;
@@ -151,21 +156,36 @@ async function runOcr({ bookId, page }) {
   emitPage(bookId, page);
   let updated;
   try {
-    if (config.engine === 'claude') {
+    if (serverOcr) {
       updated = await api(`/api/books/${bookId}/pages/${page.id}/ocr`, { method: 'POST' });
     } else {
       const text = await recognizeInBrowser(bookId, page);
       updated = await api(`/api/books/${bookId}/pages/${page.id}`, { method: 'PATCH', body: { text } });
     }
   } catch (err) {
-    if (err instanceof SilentError) return;
+    if (err instanceof SilentError) {
+      ocrRunning.delete(page.id);
+      ocrQueued.delete(page.id);
+      return;
+    }
+    const tries = (quotaRetries.get(page.id) ?? 0) + 1;
+    if (err.status === 429 && err.retryAfter && tries <= 8) {
+      // Quota momentanément atteint : la page reprend sa place en tête de file après le délai.
+      quotaRetries.set(page.id, tries);
+      ocrRunning.delete(page.id);
+      ocrWaiting.unshift({ bookId, page });
+      ocrPausedUntil = Date.now() + err.retryAfter * 1000;
+      setTimeout(pumpOcr, err.retryAfter * 1000 + 100);
+      emitPage(bookId, page);
+      return;
+    }
     updated = await api(`/api/books/${bookId}/pages/${page.id}`, { method: 'PATCH', body: { error: err.message } })
       .catch(() => ({ ...page, status: 'error', error: err.message }));
-  } finally {
-    ocrRunning.delete(page.id);
-    ocrQueued.delete(page.id);
-    freshImages.delete(page.id);
   }
+  ocrRunning.delete(page.id);
+  ocrQueued.delete(page.id);
+  freshImages.delete(page.id);
+  quotaRetries.delete(page.id);
   emitPage(bookId, updated);
 }
 
