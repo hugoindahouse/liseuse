@@ -373,7 +373,7 @@ async function showBook(id, token) {
           <img src="${pageImage(id, p, 'thumb')}" alt="" loading="lazy">
           <div class="page-info">
             <div>Page ${i + 1}<span class="badge ${status}">${STATUS_LABELS[status]}</span></div>
-            <div class="excerpt">${esc(excerpt || (status === 'done' ? '(page sans texte)' : ''))}</div>
+            <div class="excerpt${status === 'error' ? ' error' : ''}">${esc(excerpt || (status === 'done' ? '(page sans texte)' : ''))}</div>
           </div>
           <div class="page-tools">
             <button class="btn icon ghost" data-act="up" title="Monter" ${i === 0 ? 'disabled' : ''}>↑</button>
