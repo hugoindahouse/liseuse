@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7a4b2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Liseuse">
+  <title>Liseuse</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Éditeur de texte d'une page -->
+  <dialog id="editor">
+    <form method="dialog" class="editor">
+      <header class="editor-head">
+        <strong id="editor-title">Page</strong>
+        <button value="cancel" class="btn ghost" aria-label="Fermer">✕</button>
+      </header>
+      <div class="editor-body">
+        <a id="editor-image-link" target="_blank" rel="noopener"><img id="editor-image" alt="Photo de la page"></a>
+        <div class="editor-text">
+          <textarea id="editor-text" spellcheck="true"></textarea>
+          <p class="hint">Paragraphes séparés par une ligne vide · <code># Titre</code> chapitre · <code>## Titre</code> sous-titre · <code>*italique*</code> · <code>***</code> changement de scène</p>
+        </div>
+      </div>
+      <footer class="editor-foot">
+        <button value="cancel" class="btn">Annuler</button>
+        <button value="save" class="btn primary">Enregistrer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Confirmation -->
+  <dialog id="confirm">
+    <form method="dialog" class="confirm">
+      <p id="confirm-text"></p>
+      <footer>
+        <button value="cancel" class="btn">Annuler</button>
+        <button value="ok" class="btn danger" id="confirm-ok">Supprimer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <div id="toast" role="status" hidden></div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
