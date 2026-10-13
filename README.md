@@ -56,12 +56,13 @@ Sur iPhone, si une photo est refusée : Réglages → Appareil photo → Formats
 | **Tesseract**, dans le navigateur (par défaut) | correcte sur photos nettes | gratuit | rien à faire |
 | **Claude** (vision), sur le serveur | excellente : mise en page, titres, italiques | payant à l'usage (API Anthropic) | variable `ANTHROPIC_API_KEY` |
 
-Avec la variable `ANTHROPIC_API_KEY`, Claude est utilisé automatiquement. Les requêtes activent le repli
-automatique côté serveur (`fallbacks: "default"`) : si le modèle refuse une requête, l'API la relance
-avec un autre modèle.
+Avec la variable `ANTHROPIC_API_KEY`, Claude est utilisé automatiquement, avec le modèle Claude Haiku 5.5
+(≈ 0,30 $ pour un livre de 300 pages). Le bouton **↻ Tout relire** relit un livre déjà transcrit.
+Avec un modèle Opus ou Sonnet (`OCR_MODEL`), les requêtes activent en plus le repli automatique côté
+serveur (`fallbacks: "default"`) : si le modèle refuse une requête, l'API la relance avec un autre modèle.
 
-Variables optionnelles : `OCR_ENGINE` (`claude` ou `browser`), `CLAUDE_MODEL` (défaut `claude-opus-5-5`),
-`CLAUDE_EFFORT` (défaut `low`).
+Variables optionnelles : `OCR_ENGINE` (`claude` ou `browser`), `OCR_MODEL` (défaut `claude-haiku-5-5`),
+`OCR_EFFORT` (défaut `low`).
 
 ## En local (sur ton ordinateur)
 

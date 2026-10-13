@@ -315,6 +315,7 @@ async function showBook(id, token) {
         <span class="spacer"></span>
         <a class="btn" href="#/read/${id}">📖 Lire</a>
         <a class="btn" href="/api/books/${id}/epub" download>⬇ EPUB</a>
+        <button class="btn" id="retry-all" title="Relancer la lecture de toutes les pages">↻ Tout relire</button>
         <button class="btn danger" id="delete">Supprimer</button>
       </div>
       <div class="dropzone" id="drop">Glisse tes photos de pages ici — elles seront ajoutées à la fin, triées par nom de fichier.</div>
@@ -332,6 +333,18 @@ async function showBook(id, token) {
   };
   $('#title').addEventListener('change', (e) => patchBook({ title: e.target.value }));
   $('#author').addEventListener('change', (e) => patchBook({ author: e.target.value }));
+
+  $('#retry-all').onclick = async () => {
+    if (!book.pages.length) return;
+    const ok = await confirmDialog(
+      `Relire les ${book.pages.length} pages avec ${config.engineLabel} ? Les corrections faites à la main seront remplacées.`,
+      'Tout relire',
+    );
+    if (!ok) return;
+    book = await api(`/api/books/${id}/retry-all`, { method: 'POST' });
+    render();
+    for (const page of book.pages) enqueueOcr(id, page);
+  };
 
   $('#delete').onclick = async () => {
     if (!(await confirmDialog(`Supprimer « ${book.title} » et toutes ses photos ?`))) return;
