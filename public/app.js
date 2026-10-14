@@ -1,7 +1,6 @@
 // Liseuse — interface (bibliothèque, gestion des pages, lecture).
 
-import { escapeHtml as esc, inlineHtml as inline, cleanTesseractText } from './text.js';
-import { enhanceForOcr } from './preprocess.js';
+import { escapeHtml as esc, inlineHtml as inline } from './text.js';
 
 const app = document.getElementById('app');
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -116,7 +115,6 @@ function showLogin() {
 // La file d'attente vit au niveau de l'application : la lecture continue quand on passe
 // d'un écran à l'autre, tant que l'onglet reste ouvert.
 
-const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js';
 const ocrWaiting = [];
 const ocrQueued = new Set(); // pages en attente ou en cours (identifiants)
 const ocrRunning = new Set(); // pages en cours de lecture
@@ -189,25 +187,36 @@ async function runOcr({ bookId, page }) {
   emitPage(bookId, updated);
 }
 
-let tesseractWorker;
-function getTesseract() {
-  tesseractWorker ??= (async () => {
-    if (!window.Tesseract) {
-      await new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = TESSERACT_URL;
-        script.onload = resolve;
-        script.onerror = () => reject(new Error('Impossible de charger le moteur de lecture (connexion internet ?)'));
-        document.head.append(script);
-      });
+// Lecture dans le navigateur : PaddleOCR v6 dans un worker (voir ocr-worker.js).
+let ocrWorker;
+let ocrJobId = 0;
+const ocrJobs = new Map();
+let engineStatus = '';
+
+function getOcrWorker() {
+  if (ocrWorker) return ocrWorker;
+  ocrWorker = new Worker('ocr-worker.js', { type: 'module' });
+  ocrWorker.onmessage = ({ data }) => {
+    if (data.type === 'status') {
+      engineStatus = data.message;
+      window.dispatchEvent(new CustomEvent('liseuse:engine'));
+      return;
     }
-    // Le premier lancement télécharge les données de langue (≈ 15 Mo), ensuite gardées en cache.
-    return window.Tesseract.createWorker('fra');
-  })().catch((err) => {
-    tesseractWorker = null;
-    throw err;
-  });
-  return tesseractWorker;
+    const job = ocrJobs.get(data.id);
+    ocrJobs.delete(data.id);
+    if (data.error) job?.reject(new Error(data.error));
+    else job?.resolve(data.text);
+  };
+  ocrWorker.onerror = (e) => {
+    e.preventDefault();
+    for (const job of ocrJobs.values()) {
+      job.reject(new Error(`Le moteur de lecture n'a pas pu démarrer (${e.message || 'connexion internet ?'})`));
+    }
+    ocrJobs.clear();
+    ocrWorker = null;
+    engineStatus = '';
+  };
+  return ocrWorker;
 }
 
 async function recognizeInBrowser(bookId, page) {
@@ -217,21 +226,11 @@ async function recognizeInBrowser(bookId, page) {
     if (!res.ok) throw new Error('Photo introuvable');
     image = await res.blob();
   }
-  // Nettoie la photo (ombres, éclairage, contraste) : divise les erreurs par 5 à 10 sur des photos difficiles.
-  const bitmap = await createImageBitmap(image);
-  const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
-  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  enhanceForOcr(pixels);
-  ctx.putImageData(pixels, 0, 0);
-
-  const worker = await getTesseract();
-  const { data } = await worker.recognize(canvas);
-  return cleanTesseractText(data.text);
+  return new Promise((resolve, reject) => {
+    const id = ++ocrJobId;
+    ocrJobs.set(id, { resolve, reject });
+    getOcrWorker().postMessage({ id, image });
+  });
 }
 
 window.addEventListener('beforeunload', (e) => {
@@ -354,6 +353,7 @@ async function showBook(id, token) {
       <div class="dropzone" id="drop">Glisse tes photos de pages ici — elles seront ajoutées à la fin, triées par nom de fichier.</div>
       <div id="upload" hidden><span class="small" id="upload-text"></span><div class="progress"><div id="upload-bar" style="width:0"></div></div></div>
       <p class="muted small" id="status"></p>
+      <p class="small engine-status" id="engine-status" hidden></p>
       <ol class="pages" id="pages"></ol>
     </div>`;
 
@@ -397,6 +397,8 @@ async function showBook(id, token) {
         + (busy ? ` · ${busy} en cours de lecture (garde cette fenêtre ouverte)` : '')
         + (counts.error ? ` · ${counts.error} en erreur` : '')
       : 'Aucune page. Photographie les pages du livre dans l\'ordre, ou ajoute plusieurs photos d\'un coup.';
+    $('#engine-status').textContent = engineStatus;
+    $('#engine-status').hidden = !engineStatus || !busy;
 
     $('#pages').innerHTML = book.pages.map((p, i) => {
       const status = statusOf(p);
@@ -427,7 +429,11 @@ async function showBook(id, token) {
     render();
   }
   window.addEventListener('liseuse:page', onPageEvent);
-  cleanup = () => window.removeEventListener('liseuse:page', onPageEvent);
+  window.addEventListener('liseuse:engine', render);
+  cleanup = () => {
+    window.removeEventListener('liseuse:page', onPageEvent);
+    window.removeEventListener('liseuse:engine', render);
+  };
 
   $('#pages').addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-act]');

@@ -243,3 +243,4 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
 .login h1 { margin: 0; font: 600 1.5rem Literata, Georgia, serif; }
 .login .field { text-align: left; }
 .login-error { margin: 0; color: var(--err); }
+.engine-status { color: var(--accent); margin-top: -6px; }

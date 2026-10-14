@@ -13,6 +13,12 @@ import { authEnabled } from './lib/auth.js';
 const PORT = Number(process.env.PORT) || 3000;
 
 const server = express();
+// Isolation cross-origin (comme sur Vercel, voir vercel.json) : permet au moteur de lecture
+// d'utiliser plusieurs cœurs du processeur, environ 3,5 fois plus rapide.
+server.use((req, res, next) => {
+  res.set({ 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' });
+  next();
+});
 server.use(app);
 server.use(express.static(path.resolve('public')));
 

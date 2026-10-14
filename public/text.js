@@ -9,7 +9,7 @@
 const PAGE_NUMBER = /^\s*[-–—]?\s*(\d{1,4}|[ivxlcdm]{1,6})\s*[-–—]?\s*$/i;
 const SENTENCE_END = /[.!?…»"”:;)\]]$/;
 
-/** Nettoie la sortie brute de Tesseract (une ligne par ligne imprimée). */
+/** Nettoie la sortie brute d'un OCR (Tesseract ou PaddleOCR) : une ligne par ligne imprimée. */
 export function cleanTesseractText(raw) {
   const lines = raw.replace(/\r/g, '').split('\n');
   // Retire les numéros de page isolés en haut ou en bas de page.
@@ -30,7 +30,7 @@ export function cleanTesseractText(raw) {
 
 function isCapsTitle(line) {
   const t = line.trim();
-  return t.length <= 60 && (t.match(/\p{Lu}/gu) || []).length >= 4 && !/\p{Ll}/u.test(t);
+  return !t.startsWith('#') && t.length <= 60 && (t.match(/\p{Lu}/gu) || []).length >= 4 && !/\p{Ll}/u.test(t);
 }
 
 // Mots composés courants dont le trait d'union doit être conservé en fin de ligne.
@@ -75,10 +75,11 @@ export function parseBlocks(text) {
  * Un paragraphe coupé par un changement de page est recollé.
  */
 export function assembleBook(book) {
+  const pages = book.pages.filter((p) => p.status === 'done').map((p) => parseBlocks(p.text));
+  const headers = runningHeaders(pages);
   const blocks = [];
-  for (const page of book.pages) {
-    if (page.status !== 'done') continue;
-    const pageBlocks = parseBlocks(page.text);
+  for (const all of pages) {
+    const pageBlocks = all.filter((b, i) => !(isHeaderCandidate(b, i) && headers.has(headerKey(b.text))));
     if (!pageBlocks.length) continue;
 
     const prev = blocks.at(-1);
@@ -94,6 +95,28 @@ export function assembleBook(book) {
     blocks.push(...pageBlocks);
   }
   return blocks;
+}
+
+// Comparaison tolérante : sans accents, majuscules ni ponctuation (l'OCR varie d'une page à l'autre).
+const headerKey = (text) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z]+/g, '');
+
+/** Bloc qui peut être un titre courant : un titre, ou le premier bloc d'une page, et court. */
+const isHeaderCandidate = (block, index) => Boolean(block.text)
+  && block.text.length <= 80
+  && (index === 0 || block.type === 'h1' || block.type === 'h2');
+
+/**
+ * Titres courants : le titre du livre ou du chapitre répété en haut des pages (y compris au milieu
+ * du texte d'une photo de double page). On les reconnaît parce qu'ils reviennent sur plusieurs pages.
+ */
+function runningHeaders(pages) {
+  const counts = new Map();
+  for (const blocks of pages) {
+    const keys = new Set(blocks.filter(isHeaderCandidate).map((b) => headerKey(b.text)).filter((k) => k.length >= 4));
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const threshold = Math.max(3, pages.length * 0.15);
+  return new Set([...counts].filter(([, n]) => n >= threshold).map(([key]) => key));
 }
 
 const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };

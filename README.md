@@ -36,7 +36,7 @@ Ensuite, chaque modification poussée sur GitHub est déployée automatiquement.
 2. **📷 Photographier** (ouvre l'appareil photo, une page à la fois) ou **🖼️ Ajouter des photos**
    (plusieurs d'un coup, triées par nom de fichier, donc dans l'ordre de prise de vue).
 3. Les pages sont lues **dans ton navigateur** : garde la page du livre ouverte pendant la lecture
-   (quelques secondes par page). Si tu la fermes, la lecture reprend la prochaine fois que tu ouvres le livre.
+   (quelques secondes par page ; le tout premier lancement télécharge d'abord le moteur). Si tu la fermes, la lecture reprend la prochaine fois que tu ouvres le livre.
    **✎** permet de comparer la photo et le texte, et de corriger. **↑ ↓** pour réordonner,
    **↻** pour relancer la lecture d'une page.
 4. **📖 Lire** : touche le bord droit ou gauche (ou glisse) pour tourner les pages. Sur ordinateur, utilise
@@ -51,33 +51,32 @@ Sur iPhone, si une photo est refusée : Réglages → Appareil photo → Formats
 
 ## Moteur de reconnaissance (OCR)
 
-| Moteur | Qualité | Coût | Activation |
-|---|---|---|---|
-| **Tesseract**, dans le navigateur (par défaut) | correcte sur photos nettes, faible sur photos difficiles | gratuit | rien à faire |
-| **Gemini** (Google), sur le serveur | excellente : mise en page, titres, italiques | gratuit (quota quotidien) | variable `GEMINI_API_KEY` |
-| **Claude** (Anthropic), sur le serveur | excellente | payant à l'usage | variable `ANTHROPIC_API_KEY` |
+Par défaut, les pages sont lues **dans ton navigateur** par **PaddleOCR v6** (open source, gratuit,
+sans clé ni compte) :
 
-### Activer Gemini (gratuit)
+- la photo est nettoyée (ombres, éclairage inégal, contraste) puis lue par les réseaux de neurones
+  PP-OCRv6 (détection des lignes + reconnaissance, tous les caractères français) ;
+- les paragraphes, titres, dialogues et mots coupés sont reconstruits à partir de la position des lignes
+  (y compris sur une photo penchée ou une double page) ; les titres courants répétés en haut des pages
+  sont retirés ;
+- au premier lancement, le navigateur télécharge les modèles (≈ 45 Mo au total), gardés ensuite en
+  cache ; puis environ 5 à 10 s par page sur ordinateur, un peu plus sur téléphone.
 
-1. Sur [aistudio.google.com/apikey](https://aistudio.google.com/apikey), connecte-toi avec un compte Google
-   et clique sur **Create API key** (aucune carte bancaire demandée).
-2. Dans Vercel : **Settings → Environment Variables** → `GEMINI_API_KEY` = la clé → **Save**, puis **Redeploy**.
-3. Dans un livre déjà transcrit, **↻ Tout relire**.
+Le site envoie les en-têtes `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` (voir
+`vercel.json`) : ils permettent au moteur d'utiliser plusieurs cœurs du processeur (≈ 3,5 fois plus
+rapide).
 
-L'offre gratuite limite le nombre de pages par minute et par jour, modèle par modèle. L'application
-utilise donc une cascade : **Gemini Flash** (le meilleur), puis **Flash-Lite**, puis **Gemma 3** (quota
-quotidien bien plus large) quand les précédents sont épuisés. Si tous sont momentanément bloqués, la
-lecture reprend toute seule ; s'ils sont tous épuisés pour la journée, relance le lendemain.
-Sur l'offre gratuite, Google peut utiliser les photos envoyées pour améliorer ses modèles.
+### Moteurs en ligne (facultatif)
 
-### Options
+Si une clé est définie, la lecture passe par une IA en ligne à la place :
 
-- `OCR_ENGINE` : `gemini`, `claude` ou `browser` pour forcer un moteur (sinon : Gemini si sa clé est là,
-  puis Claude, puis Tesseract).
-- `OCR_MODEL` : pour Gemini, liste de modèles séparés par des virgules (défaut
-  `gemini-flash-latest,gemini-flash-lite-latest,gemma-3-27b-it`) ; pour Claude, le modèle (défaut `claude-haiku-5-5`).
-- `OCR_EFFORT` : effort de réflexion de Claude (défaut `low`). Avec un modèle Claude Opus ou Sonnet, le repli
-  automatique côté serveur (`fallbacks: "default"`) est activé.
+| Variable | Moteur | Coût |
+|---|---|---|
+| `GEMINI_API_KEY` | Gemini (cascade Flash → Flash-Lite → Gemma 3) | gratuit avec quotas quotidiens |
+| `ANTHROPIC_API_KEY` | Claude (Haiku 5.5 par défaut) | payant à l'usage |
+
+Pour revenir à PaddleOCR, supprime ces variables dans Vercel puis redéploie. Options : `OCR_ENGINE`
+(`browser`, `gemini` ou `claude`), `OCR_MODEL`, `OCR_EFFORT`.
 
 ## En local (sur ton ordinateur)
 
@@ -95,11 +94,13 @@ Puis ouvre <http://localhost:3000>. Sans les variables Vercel, les livres sont s
 
 | Fichier | Rôle |
 |---|---|
-| `public/` | interface (bibliothèque, liseuse, OCR Tesseract dans le navigateur) |
+| `public/` | interface (bibliothèque, liseuse) |
+| `public/ocr-worker.js` | lecture des pages dans le navigateur (PaddleOCR v6) |
+| `public/layout.js` | reconstruction des paragraphes à partir des lignes détectées |
 | `public/text.js` | mise en forme du texte, partagée entre navigateur et serveur |
 | `lib/app.js` | API (Express) |
 | `lib/storage/` | stockage : `cloud.js` (Upstash Redis + Vercel Blob privé) ou `local.js` (fichiers) |
-| `public/preprocess.js` | nettoyage des photos avant Tesseract |
+| `public/preprocess.js` | nettoyage des photos avant lecture |
 | `lib/ocr.js` | OCR serveur avec Gemini ou Claude |
 | `lib/epub.js` | export EPUB |
 | `api/index.js` | point d'entrée Vercel |
